@@ -379,6 +379,7 @@ int proc_ftpd(char * buf)
         case STOR_CMD:
             printf("STOR_CMD\r\n");
             ftpd_storcmd(arg);
+            printf("STOR_CMD FINISH \r\n");
             break;
 
         case PORT_CMD:
@@ -795,7 +796,7 @@ int ftpd_listcmd(char* arg){
     size = strlen((char*)dbuf);
 #endif
 #if defined(_FTP_DEBUG_)
-    printf("returned data[%d] : %s\r\n", size, dbuf);
+    printf("returned data[%d] : %s[end]\r\n", size, dbuf);
 #endif
 
     if(size > 0)
@@ -820,11 +821,11 @@ int ftpd_listcmd(char* arg){
 
 int ftpd_retrcmd(char* arg){
     datasize_t slen;
-    size_t remain_filesize;
+    int32_t remain_filesize;
     uint8_t tmp;
-    uint32_t send_byte;
+    datasize_t send_byte;
     datasize_t blocklen;
-    char sendbuf[200], dbuf[_FTP_MAX_MSG_SIZE_];
+    char sendbuf[500], dbuf[_FTP_MAX_MSG_SIZE_];
 
 #ifdef _FTP_DEBUG_
     printf("%s->%s [%d]\r\n",  __FILE__, __FUNCTION__, __LINE__);
@@ -846,29 +847,36 @@ int ftpd_retrcmd(char* arg){
     ftp.fr = f_open(&(ftp.fil), (const char *)ftp.filename, FA_READ);
     //print_filedsc(&(ftp.fil));
     if(ftp.fr == FR_OK){
-        remain_filesize = ftp.fil.obj.objsize;
+        remain_filesize = (int32_t)ftp.fil.obj.objsize;
 #if defined(_FTP_DEBUG_)
         printf("f_open return FR_OK\r\n");
 #endif
         do{
 #if defined(_FTP_DEBUG_)
-            printf("remained file size: %ld\r\n", ftp.fil.obj.objsize);
+            printf("remained file size: %d , %ld\r\n",remain_filesize,  ftp.fil.obj.objsize);
 #endif
-            memset(dbuf, 0, _MAX_SS);
+            //memset(dbuf, 0, _FTP_MAX_MSG_SIZE_);
 
-            if(remain_filesize > _MAX_SS)
-                send_byte = _MAX_SS;
+            if(remain_filesize > _FTP_MAX_MSG_SIZE_)
+                send_byte = (datasize_t)_FTP_MAX_MSG_SIZE_;
             else
                 send_byte = remain_filesize;
-
+#if defined(_FTP_DEBUG_)
+            printf("send byte:%d\r\n",send_byte);
+#endif
             ftp.fr = f_read(&(ftp.fil), dbuf, send_byte , &blocklen);
             if(ftp.fr != FR_OK)
-                break;
+            {
 #if defined(_FTP_DEBUG_)
-            printf("#");
+                printf("file read Error:%d\r\n",ftp.fr);
+#endif
+                break;
+            }
+#if defined(_FTP_DEBUG_)
             printf("----->fsize:%d recv:%d len:%d \r\n", remain_filesize, send_byte, blocklen);
             printf("----->fn:%s data:%s \r\n", ftp.filename, dbuf);
 #endif
+            dbuf[blocklen] = 0;
             send(ftp.data, dbuf, blocklen);
             remain_filesize -= blocklen;
         }while(remain_filesize != 0);
@@ -896,12 +904,15 @@ int ftpd_retrcmd(char* arg){
     disconnect(ftp.data);
     slen = sprintf(sendbuf, "226 Successfully transferred \"%s\"\r\n", ftp.filename);
     send(ftp.control, (uint8_t*)sendbuf, slen);
+    #if defined(_FTP_DEBUG_)
+        printf("send[%d] %d : %s\r\n", ftp.control, slen, sendbuf);
+    #endif
     return 0;
 
 }
 
 int ftpd_storcmd(char* arg){
-    char sendbuf[200], dbuf[_FTP_MAX_MSG_SIZE_];
+    char sendbuf[500], dbuf[_FTP_MAX_MSG_SIZE_];
     datasize_t slen;
     int16_t remain_datasize;
     uint8_t tmp;
@@ -923,86 +934,92 @@ int ftpd_storcmd(char* arg){
     printf("%d:filename to store : %s %d\r\n", ftp.data, ftp.filename, strlen(ftp.filename));
     
 #if defined(F_FILESYSTEM)
-    				ftp.fr = f_open(&(ftp.fil), (const char *)ftp.filename, FA_CREATE_ALWAYS | FA_WRITE);
-    				//print_filedsc(&(ftp.fil));
-    				if(ftp.fr == FR_OK){
-#if defined(_FTP_DEBUG_)
-    					printf("f_open return FR_OK\r\n");
-#endif
-    					while(1){
-                            getsockopt(ftp.data, SO_RECVBUF, &remain_datasize);
-    						//if((remain_datasize = getSn_RX_RSR(ftp.data)) > 0){
-    						if(remain_datasize > 0){
-    							while(1){
-    								memset(dbuf, 0, _MAX_SS);
+//#if 0
 
-                                    if(remain_datasize > _FTP_MAX_MSG_SIZE_)
-                                       recv_byte = _FTP_MAX_MSG_SIZE_;
-                                    else
-                                       recv_byte = remain_datasize;
+	ftp.fr = f_open(&(ftp.fil), (const char *)ftp.filename, FA_CREATE_ALWAYS | FA_WRITE);
+	//print_filedsc(&(ftp.fil));
+	if(ftp.fr == FR_OK){
+#if defined(_FTP_DEBUG_)
+		printf("f_open return FR_OK\r\n");
+#endif
+		while(1){
+            getsockopt(ftp.data, SO_RECVBUF, &remain_datasize);
+			//if((remain_datasize = getSn_RX_RSR(ftp.data)) > 0){
+#if defined(_FTP_DEBUG_)
+           printf("1_Remain :%d \r\n", remain_datasize);
+#endif
+			if(remain_datasize > 0){
+				while(1){
+                    if(remain_datasize > _FTP_MAX_MSG_SIZE_)
+                       recv_byte = _FTP_MAX_MSG_SIZE_;
+                   else
+                       recv_byte = remain_datasize;
+#if defined(_FTP_DEBUG_)
+                       printf("recv_byte:%d \r\n", recv_byte);
+#endif
+                   ret = recv(ftp.data, (uint8_t*)dbuf, recv_byte);
+                   dbuf[ret]=0;
+#if defined(_FTP_DEBUG_)
+					printf("----->fn:%s data:%s \r\n", ftp.filename, dbuf);
+#endif
+                    if(ret < 0)
+                    {
+#if defined(_FTP_DEBUG_)
+                        printf("recv error ret : %d remain : %d \r\n", ret, remain_datasize);
+#endif
+                        break;
+                    }
+					ftp.fr = f_write(&(ftp.fil), dbuf, (UINT)ret, &blocklen);
+#if defined(_FTP_DEBUG_)
+					printf("----->dsize:%d recv:%d len:%d \r\n", remain_datasize, ret, blocklen);
+                    printf("ftp.fr = %d\r\n", ftp.fr);
+#endif
+					remain_datasize -= blocklen;
 
-    								ret = recv(ftp.data, dbuf, recv_byte);
+					if(ftp.fr != FR_OK){
 #if defined(_FTP_DEBUG_)
-    								printf("----->fn:%s data:%s \r\n", ftp.filename, dbuf);
+						printf("f_write failed\r\n");
 #endif
-                                    if(ret < 0)
-                                    {
-#if defined(_FTP_DEBUG_)
-                                        printf("recv error ret : %d remain : %d \r\n", ret, remain_datasize);
-#endif
-                                        break;
-                                    }
-    								ftp.fr = f_write(&(ftp.fil), dbuf, (UINT)ret, &blocklen);
-#if defined(_FTP_DEBUG_)
-    								printf("----->dsize:%d recv:%d len:%d \r\n", remain_datasize, ret, blocklen);
-                                    printf("ftp.fr = %d\r\n", ftp.fr);
-#endif
-    								remain_datasize -= blocklen;
+						break;
+					}
 
-    								if(ftp.fr != FR_OK){
-#if defined(_FTP_DEBUG_)
-    									printf("f_write failed\r\n");
-#endif
-    									break;
-    								}
+					if(remain_datasize <= 0)
+						break;
+				}
 
-    								if(remain_datasize <= 0)
-    									break;
-    							}
-
-    							if(ftp.fr != FR_OK){
+				if(ftp.fr != FR_OK){
 #if defined(_FTP_DEBUG_)
-    								printf("f_write failed\r\n");
+					printf("f_write failed\r\n");
 #endif
-    								break;
-    							}
+					break;
+				}
 
 #if defined(_FTP_DEBUG_)
-    							printf("#");
+				printf("#");
 #endif
-    						}else{
-                                getsockopt(ftp.data, SO_STATUS, &tmp);
-                               if(tmp != SOCK_ESTABLISHED)
-                                   break;
-    						}
-    					}
+			}else{
+                getsockopt(ftp.data, SO_STATUS, &tmp);
+               if(tmp != SOCK_ESTABLISHED)
+                   break;
+			}
+		}
 #if defined(_FTP_DEBUG_)
-    					printf("\r\nFile write finished\r\n");
+		printf("\r\nFile write finished\r\n");
 #endif
-    					ftp.fr = f_close(&(ftp.fil));
+		ftp.fr = f_close(&(ftp.fil));
 #if defined(_FTP_DEBUG_)
-                        printf("\r\n f_close %d\r\n", ftp.fr);
+        printf("\r\n f_close %d\r\n", ftp.fr);
 #endif
 
-    				}else{
+	}else{
 #if defined(_FTP_DEBUG_)
-    					printf("File Open Error: %d\r\n", ftp.fr);
+		printf("File Open Error: %d\r\n", ftp.fr);
 #endif
-    				}
+	}
 
-    				//fno.fdate = (WORD)(((current_year - 1980) << 9) | (current_month << 5) | current_day);
-    				//fno.ftime = (WORD)((current_hour << 11) | (current_min << 5) | (current_sec >> 1));
-    				//f_utime((const char *)ftp.filename, &fno);
+	//fno.fdate = (WORD)(((current_year - 1980) << 9) | (current_month << 5) | current_day);
+	//fno.ftime = (WORD)((current_hour << 11) | (current_min << 5) | (current_sec >> 1));
+	//f_utime((const char *)ftp.filename, &fno);
 #else
     while(1){
         getsockopt(ftp.data, SO_RECVBUF, &remain_datasize);
@@ -1037,6 +1054,8 @@ int ftpd_storcmd(char* arg){
     disconnect(ftp.data);
 
     slen = sprintf(sendbuf, "226 Successfully transferred \"%s\"\r\n", ftp.filename);
-    send(ftp.control, (uint8_t*)sendbuf, slen);
+    printf("send[%d] ctrl[%d]:%s\r\n", ftp.control, slen, sendbuf);
+    ret = send(ftp.control, (uint8_t*)sendbuf, slen);
+    printf("send ctrl[%d]\r\n",ret);
     return 0;
 }

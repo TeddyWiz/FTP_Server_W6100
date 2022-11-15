@@ -31,6 +31,7 @@
 #include "ftpd.h"
 #include "Application.h"
 #include "wizchip_init.h"
+#include "ff_func.h"
 //#include "general_sdcard.h"
 
 /* USER CODE END Includes */
@@ -191,6 +192,8 @@ int main(void)
   FATFS fs;
   FRESULT fres;
   DSTATUS res;
+  char scan_file_buf[512];
+  int temp_len;
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -233,6 +236,8 @@ int main(void)
   #endif
   ftpd_init("user10", "pass10", 21);
   sdCard_Init();
+  scan_files("/", scan_file_buf, &temp_len);
+  printf("buf[%d]:%s[end]\r\n", temp_len, scan_file_buf);
   //test_sd();
   #if 0
     if((res =disk_initialize((BYTE) 0)) != RES_OK)

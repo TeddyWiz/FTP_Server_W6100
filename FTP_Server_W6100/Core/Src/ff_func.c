@@ -1,7 +1,7 @@
 //#include "ff.h"			/* Declarations of FatFs API */
 #include "ff_func.h"
 #include "stdio.h"
-
+#include "ff.h"
 
 
 #define _FF_F_DEBUG_
@@ -12,6 +12,81 @@
 
 --------------------------------------------------------------------------*/
 
+FRESULT scan_files(char* path, char *buf, int * buf_len)
+{
+    unsigned int file_cnt = 0;
+    FRESULT res;
+    FILINFO fno;
+    DIR dir;
+    int i, len;
+    char *fn;
+   char temp_mon[12][4] = {"JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"};
+   char *p_buf = buf;
+   char temp_dir = 0;
+   WORD temp_f_date = 0;
+   WORD temp_f_time = 0;
+    
+ 
+//#if _USE_LFN
+#if 0
+    static char lfn[_MAX_LFN * (_DF1S ? 2 : 1) + 1];
+    fno.altname = lfn;
+    fno.lfsize = sizeof(lfn);
+#endif
+
+ printf("Open..");
+    res = f_opendir(&dir, path);
+ 
+    if (res == FR_OK) {
+        i = strlen(path);
+        printf("OK.");
+        for (;;) {
+            res = f_readdir(&dir, &fno);
+            if (res != FR_OK || fno.fname[0] == 0) break;
+            if(fno.fname[0] == '.') continue;
+//#if _USE_LFN
+#if 0
+            fn = *fno.altname ? fno.altname : fno.fname;
+#else
+            fn = fno.fname;
+#endif
+            if(fno.fdate == 0)
+            {
+                fno.fdate = temp_f_date;
+                fno.ftime = temp_f_time;
+            }
+            else
+            {
+                temp_f_date = fno.fdate;
+                temp_f_time = fno.ftime;
+            }
+                //get_fileinfo(&dir, &fno);
+            printf("f_readdir ret : %d, fname %c\r\n", res, fno.fname[0]);
+            //printf("modtime = %02X%02X%02X%02X \r\n", (dir.dir + 22)[3], (dir.dir + 22)[2], (dir.dir + 22)[1],(dir.dir + 22)[0]);
+            printf("f_date:%x, f_time:%x\r\n", fno.fdate, fno.ftime);
+
+            if (fno.fattrib & AM_DIR) {
+                temp_dir = 'd';
+                //printf("[D]%s\r\n",fn);
+            } else {
+                temp_dir = '-';
+                //printf("%s/%s : \t\t %dbyte\r\n", path, fn,fno.fsize);
+            }
+            len = sprintf(p_buf, "%crwxr-xr-x 1 ftp ftp %d %s %d %d %s\r\n",temp_dir, fno.fsize,temp_mon[((fno.fdate >> 5) & 0x0f) -1], (fno.fdate & 0x1f), (((fno.fdate >> 9) & 0x7f) + 1980), fn);
+            printf("mon = %d, day = %d,  year = %d \r\n", ((fno.fdate >> 5) & 0x0f) -1, (fno.fdate & 0x1f), (((fno.fdate >> 9) & 0x7f) + 1980));
+            printf("buf[%d]:%s", len, p_buf);
+            p_buf += len;
+        }
+    }
+    else{
+        printf("path(%s) not found:Error(%d)\r\n",path,res);
+    }
+    *p_buf = 0;
+    *buf_len = strlen(buf);
+    printf("last[%d]=%s[end]\r\n",*buf_len, buf);
+    return file_cnt;
+}
+#if 0
 FRESULT scan_files(char* path, char *buf, int * buf_len)
 {
 	FRESULT res;
@@ -140,7 +215,7 @@ FRESULT scan_files(char* path, char *buf, int * buf_len)
 	}
 	return res;
 }
-
+#endif
 int get_filesize(char* path, char *filename)
 {
 	FRESULT res;

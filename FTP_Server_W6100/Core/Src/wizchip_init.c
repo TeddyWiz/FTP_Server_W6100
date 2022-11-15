@@ -5,6 +5,13 @@
 DMA_InitTypeDef		DMA_RX_InitStructure, DMA_TX_InitStructure;
 #elif defined USE_HAL_DRIVER
 #endif
+void temp_wizchip_cris_enter()
+{
+}
+void temp_wizchip_cris_exit()
+{
+}
+
 void W6100Initialze(void)
 {
 	W6100Reset();
@@ -26,7 +33,6 @@ void W6100Initialze(void)
 	reg_wizchip_bus_cbfunc(W6100BusReadByte, W6100BusWriteByte, 0, 0);
 	#endif
 #endif
-
 	uint8_t temp;
 	unsigned char W6100_AdrSet[2][8] = {{2, 2, 2, 2, 2, 2, 2, 2}, {2, 2, 2, 2, 2, 2, 2, 2}};
 	do
@@ -70,6 +76,7 @@ uint8_t W6100SpiReadByte(void)
 
 	// Sppi read
 #endif
+    return 0;
 }
 
 void W6100SpiWriteByte(uint8_t byte)
@@ -86,7 +93,7 @@ void W6100SpiWriteByte(uint8_t byte)
 	uint8_t rx;
 	HAL_SPI_TransmitReceive(&W6100_SPI, &byte, &rx, W6100_SPI_SIZE, W6100_SPI_TIMEOUT);
 #endif
-
+    return 0;
 }
 
 uint8_t W6100SpiReadBurst(uint8_t* pBuf, uint16_t len)
@@ -115,8 +122,10 @@ uint8_t W6100SpiReadBurst(uint8_t* pBuf, uint16_t len)
 	DMA_Cmd(W6100_DMA_CHANNEL_RX, DISABLE);
 
 #elif defined USE_HAL_DRIVER
-	return 0;
+    uint8_t tx[8] ={0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
+	HAL_SPI_TransmitReceive(&W6100_SPI, tx, pBuf, len, W6100_SPI_TIMEOUT);
 #endif
+    return 0;
 
 }
 
@@ -149,6 +158,8 @@ void W6100SpiWriteBurst(uint8_t* pBuf, uint16_t len)
 	DMA_Cmd(W6100_DMA_CHANNEL_RX, DISABLE);
 
 #elif defined USE_HAL_DRIVER
+    uint8_t rx[8] ={0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
+    HAL_SPI_TransmitReceive(&W6100_SPI, pBuf, rx, len, W6100_SPI_TIMEOUT);
 
 #endif
 
